@@ -1,72 +1,82 @@
-'use client';
+"use client";
 
-import React, { useState, useRef } from "react";
+import { useState } from "react";
 
-export default function HomePage() {
+export default function Home() {
   const [prompt, setPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function handleGenerate() {
-    if (!prompt.trim()) {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-      return;
-    }
-    setGenerating(true);
-    setImageUrl(null);
+  const handleGenerate = async () => {
+    if (!prompt) return;
+    setLoading(true);
+    setImageUrl(""); // 清空上一张图
+
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
       });
-      if (!res.ok) throw new Error("Failed to generate image.");
-      const data = await res.json();
-      if (!data?.imageUrl) throw new Error("No image returned.");
-      setImageUrl(data.imageUrl);
-    } catch (err: any) {
-      alert(err.message || "Something went wrong.");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate image");
+      }
+
+      // -------------------------------------------------------
+      // 👇 关键修改在这里：我们要把响应当成 Blob (二进制大对象) 处理
+      // -------------------------------------------------------
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setImageUrl(url);
+
+    } catch (error) {
+      console.error(error);
+      alert("生成失败: " + (error instanceof Error ? error.message : "未知错误"));
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-xl">
-        <div className="bg-neutral-900 rounded-2xl shadow-xl p-6 flex flex-col gap-6">
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              rows={4}
-              className="w-full resize-none bg-neutral-800 text-neutral-50 placeholder-neutral-500 rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
-              placeholder="Describe your imagination..."
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              disabled={generating}
-              spellCheck={false}
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
+      <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-purple-400 to-pink-600 text-transparent bg-clip-text">
+        ImaStudio AI
+      </h1>
+
+      <div className="w-full max-w-2xl space-y-6">
+        <textarea
+          className="w-full h-32 p-4 rounded-xl bg-gray-900 border border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none text-lg"
+          placeholder="Describe your imagination... (e.g. A cyberpunk cat in neon city)"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading || !prompt}
+          className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
+            loading || !prompt
+              ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+              : "bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 active:scale-95"
+          }`}
+        >
+          {loading ? "Generating Magic..." : "Generate Image"}
+        </button>
+
+        {/* 图片展示区域 */}
+        {imageUrl && (
+          <div className="mt-8 rounded-xl overflow-hidden border border-gray-700 shadow-2xl">
+            <img 
+              src={imageUrl} 
+              alt="Generated AI Art" 
+              className="w-full h-auto"
             />
-            <button
-              className="absolute bottom-3 right-3 px-5 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-semibold text-base shadow-lg transition-transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={handleGenerate}
-              disabled={generating || !prompt.trim()}
-            >
-              {generating ? 'Generating...' : 'Generate'}
-            </button>
           </div>
-          {imageUrl && (
-            <div className="w-full flex justify-center mt-2">
-              <img
-                src={imageUrl}
-                alt="AI generated"
-                className="rounded-2xl shadow-2xl max-w-full max-h-[500px] object-contain bg-neutral-800 border border-neutral-700"
-              />
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
