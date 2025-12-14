@@ -2,28 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // 从 request body 获取 prompt
     const body = await request.json();
     const { prompt } = body;
 
     if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    // 检查环境变量
     if (!process.env.HF_TOKEN) {
-      return NextResponse.json(
-        { error: 'HF_TOKEN is not configured' },
-        { status: 500 }
-      );
+      console.error("❌ HF_TOKEN is missing");
+      return NextResponse.json({ error: 'Server configuration error: HF_TOKEN is missing' }, { status: 500 });
     }
 
-    // 调用 Hugging Face Inference API
+    console.log(`🚀 Sending request to Hugging Face for prompt: "${prompt.substring(0, 20)}..."`);
+
+    // ✅ 使用新的 Router URL
     const response = await fetch(
-      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+      'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0',
       {
         method: 'POST',
         headers: {
@@ -36,18 +31,16 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Hugging Face API error:', errorText);
+      console.error('❌ Hugging Face API error:', errorText);
       return NextResponse.json(
-        { error: `Hugging Face API error: ${response.statusText}` },
-        { status: 500 }
+        { error: `Hugging Face API error: ${response.status} - ${errorText}` },
+        { status: response.status }
       );
     }
 
-    // 将返回的二进制流转成 Buffer
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 返回 image/jpeg 图片
     return new NextResponse(buffer, {
       status: 200,
       headers: {
@@ -56,7 +49,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error generating image:', error);
+    console.error('❌ Error generating image:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
